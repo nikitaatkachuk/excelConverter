@@ -166,7 +166,7 @@ public class Product
 				startRow++;
 			}
 		}
-		result.put("H20", this.cost);
+		result.put("AX20", this.cost);
 
 
 

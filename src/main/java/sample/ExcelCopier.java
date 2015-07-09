@@ -357,11 +357,22 @@ public final class ExcelCopier
 				break;
 			//TODO: remove hack!!!!
 			case HSSFCell.CELL_TYPE_FORMULA:
-				StringBuilder builder = new StringBuilder();
-				builder.append("H").append(11 + lastRowNewSheet).append("*J").append(11 + lastRowNewSheet).append("*H").append(20 + lastRowNewSheet).append("+");
-				builder.append("H").append(12 + lastRowNewSheet).append("*J").append(12 + lastRowNewSheet).append("*H").append(20 + lastRowNewSheet).append("+");
-				builder.append("H").append(13 + lastRowNewSheet).append("*J").append(13 + lastRowNewSheet).append("*H").append(20 + lastRowNewSheet);
-				newCell.setCellFormula(builder.toString());
+				String oldCellFormula = oldCell.getCellFormula();
+				if(oldCellFormula.startsWith("J11*H20"))
+				{
+					StringBuilder builder = new StringBuilder();
+					for (int i = 11; i < 19; i++)
+					{
+						builder.append("H").append(i + lastRowNewSheet).append("*J").append(i + lastRowNewSheet).append("*H").append(20 + lastRowNewSheet).append("+");
+					}
+					builder.append("H").append(19 + lastRowNewSheet).append("*J").append(19 + lastRowNewSheet).append("*H").append(20 + lastRowNewSheet);
+					oldCellFormula = builder.toString();
+				}
+				if(oldCellFormula.equals("BB20"))
+				{
+					oldCellFormula = oldCellFormula.replace("20", String.valueOf(20 + lastRowNewSheet));
+				}
+				newCell.setCellFormula(oldCellFormula);
 				break;
 			default:
 				break;
