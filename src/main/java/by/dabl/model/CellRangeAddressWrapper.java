@@ -1,4 +1,4 @@
-package sample;
+package by.dabl.model;
 
 import org.apache.poi.ss.util.CellRangeAddress;
 

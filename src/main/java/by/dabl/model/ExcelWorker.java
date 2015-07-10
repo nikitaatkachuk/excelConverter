@@ -1,4 +1,4 @@
-package sample;
+package by.dabl.model;
 
 import org.apache.poi.hssf.usermodel.HSSFCell;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
@@ -12,20 +12,28 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 
+import by.dabl.model.copier.HSSFExcelCopier;
+
 /**
  * Created by Nikita Tkachuk
  */
-public class ExcelWorker
+public class ExcelWorker implements Runnable
 {
-	public void startParse(String sourceFilePath, ParserConfiguration configuration, String pathToSave)
+	private String sourceFilePath;
+	private ParserConfiguration configuration;
+	private String pathToSave;
+
+	public ExcelWorker(String sourceFilePath, ParserConfiguration configuration, String pathToSave)
 	{
-		writeFile(ExcelProductTemplate.INSTANCE.getTemplateSheet(), sourceFilePath, configuration, pathToSave);
+		this.sourceFilePath = sourceFilePath;
+		this.configuration = configuration;
+		this.pathToSave = pathToSave;
 	}
 
 	private void writeFile(Sheet sheet, String sourceFileName, ParserConfiguration configuration, String pathToSave)
 	{
 		Map<Integer, List<Product>> productsByPortions = productsParser(sourceFileName, configuration);
-		ExcelCopier copier = new ExcelCopier();
+		HSSFExcelCopier copier = new HSSFExcelCopier();
 		for (Map.Entry<Integer, List<Product>> entry : productsByPortions.entrySet())
 		{
 			HSSFWorkbook workbook = new HSSFWorkbook();
@@ -67,7 +75,7 @@ public class ExcelWorker
 		}
 	}
 
-	public static void productToExcel(HSSFSheet sheet, Product product)
+	private void productToExcel(HSSFSheet sheet, Product product)
 	{
 		Map<String, String> mappedProductOnCells = product.productToExcelCellMapping();
 		for (Map.Entry<String, String> entry : mappedProductOnCells.entrySet())
@@ -85,7 +93,7 @@ public class ExcelWorker
 		}
 	}
 
-	private static void insertMainImage(HSSFSheet sheet, URL imageUrl)
+	private void insertMainImage(HSSFSheet sheet, URL imageUrl)
 	{
 		try(InputStream urlStream = imageUrl.openStream())
 		{
@@ -109,7 +117,7 @@ public class ExcelWorker
 		}
 	}
 
-	private static void insertModelRowImages(HSSFSheet sheet, List<URL> urlCollection)
+	private void insertModelRowImages(HSSFSheet sheet, List<URL> urlCollection)
 	{
 		int row1 = 0;
 		int row2 = 0;
@@ -372,5 +380,11 @@ public class ExcelWorker
 			default:
 				return "";
 		}
+	}
+
+	@Override
+	public void run()
+	{
+		writeFile(ExcelProductTemplate.INSTANCE.getTemplateSheet(), sourceFilePath, configuration, pathToSave);
 	}
 }

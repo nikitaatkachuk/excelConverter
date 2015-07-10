@@ -1,4 +1,4 @@
-package sample;
+package by.dabl.model;
 
 import java.util.*;
 

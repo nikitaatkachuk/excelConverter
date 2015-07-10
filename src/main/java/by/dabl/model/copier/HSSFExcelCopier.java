@@ -1,4 +1,4 @@
-package sample;
+package by.dabl.model.copier;
 
 import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.ss.usermodel.*;
@@ -7,11 +7,23 @@ import org.apache.poi.ss.util.CellRangeAddress;
 import java.io.*;
 import java.util.*;
 
-public final class ExcelCopier
-{
-	private int imagesCount = 0;
+import by.dabl.model.CellRangeAddressWrapper;
 
-	public void mergeFiles()
+/**
+ *  Implementation for working with old .xsl files, Excel 1997-2003 versions.
+ */
+
+public class HSSFExcelCopier implements ExcelCopier
+{
+
+	/**
+	 * Stateful variable. Contains already copied images count.
+	 * Maybe will be removed in future, after change system design.
+	 */
+
+	private int alreadyCopiedImagesCount = 0;
+
+	protected void mergeFiles()
 	{
 		try
 		{
@@ -44,10 +56,6 @@ public final class ExcelCopier
 			}
 
 		}
-		catch (FileNotFoundException e)
-		{
-			e.printStackTrace();
-		}
 		catch (IOException e)
 		{
 			e.printStackTrace();
@@ -56,7 +64,7 @@ public final class ExcelCopier
 
 	private String destinationFile = "c:\\Merged_File.xls";
 
-	private void writeToFile(HSSFWorkbook workbook, HSSFSheet sheet)
+	protected void writeToFile(HSSFWorkbook workbook, HSSFSheet sheet)
 	{
 		if (workbook != null && sheet.getPhysicalNumberOfRows() > 0)
 		{
@@ -82,32 +90,25 @@ public final class ExcelCopier
 	/**
 	 * DEFAULT CONSTRUCTOR.
 	 */
-	public ExcelCopier()
+	public HSSFExcelCopier()
 	{
 	}
 
-	/**
-	 * @param newSheet the sheet to create from the copy.
-	 * @param sheet    the sheet to copy.
-	 */
-	public void copySheets(HSSFSheet newSheet, HSSFSheet sheet)
+	@Override
+	public void copySheets(Sheet newSheet, Sheet sheet)
 	{
 		copySheets(newSheet, sheet, true);
 	}
 
-	/**
-	 * @param newSheet  the sheet to create from the copy.
-	 * @param sheet     the sheet to copy.
-	 * @param copyStyle true copy the style.
-	 */
-	public void copySheets(HSSFSheet newSheet, HSSFSheet sheet, boolean copyStyle)
+	@Override
+	public void copySheets(Sheet newSheet, Sheet sheet, boolean copyStyle)
 	{
 		int maxColumnNum = 0;
-		Map<Integer, HSSFCellStyle> styleMap = (copyStyle) ? new HashMap<Integer, HSSFCellStyle>() : null;
+		Map<Integer, CellStyle> styleMap = (copyStyle) ? new HashMap<Integer, CellStyle>() : null;
 		for (int i = sheet.getFirstRowNum(); i <= sheet.getLastRowNum(); i++)
 		{
-			HSSFRow srcRow = sheet.getRow(i);
-			HSSFRow destRow = newSheet.createRow(i);
+			Row srcRow = sheet.getRow(i);
+			Row destRow = newSheet.createRow(i);
 			if (srcRow != null)
 			{
 				// System.out.println("srcRow = " + srcRow.toString());
@@ -129,15 +130,15 @@ public final class ExcelCopier
 	 * @param sheet     the sheet to copy.
 	 * @param copyStyle true copy the style.
 	 */
-	public void addOldSheetToEnd(HSSFSheet newSheet, HSSFSheet sheet, boolean copyStyle)
+	public void addOldSheetToEnd(Sheet newSheet, Sheet sheet, boolean copyStyle)
 	{
 		int maxColumnNum = 0;
-		Map<Integer, HSSFCellStyle> styleMap = (copyStyle) ? new HashMap<Integer, HSSFCellStyle>() : null;
+		Map<Integer, CellStyle> styleMap = (copyStyle) ? new HashMap<Integer, CellStyle>() : null;
 		int lastRowNewSheet = newSheet.getLastRowNum() == 0 ? 0 : newSheet.getLastRowNum() + 1;
 		for (int i = sheet.getFirstRowNum(); i <= sheet.getLastRowNum(); i++)
 		{
-			HSSFRow srcRow = sheet.getRow(i);
-			HSSFRow destRow = newSheet.createRow(i + lastRowNewSheet);
+			Row srcRow = sheet.getRow(i);
+			Row destRow = newSheet.createRow(i + lastRowNewSheet);
 			if (srcRow != null)
 			{
 				// System.out.println("srcRow = " + srcRow.toString());
@@ -152,8 +153,9 @@ public final class ExcelCopier
 		{
 			newSheet.setColumnWidth(i + lastRowNewSheet, sheet.getColumnWidth(i));
 		}
-		List<HSSFPictureData> allPictures = sheet.getWorkbook().getAllPictures();
-		int willInsertedImageCount = allPictures.size() - imagesCount;
+		List<? extends PictureData> allPictures = sheet.getWorkbook().getAllPictures();
+		int willInsertedImageCount = allPictures.size() - alreadyCopiedImagesCount;
+		//TODO: think about abstraction
 		ClientAnchor anchor = new HSSFClientAnchor();
 		if(willInsertedImageCount == 0)
 		{
@@ -161,10 +163,10 @@ public final class ExcelCopier
 		}
 		else if(willInsertedImageCount > 1)
 		{
-			List<HSSFPictureData> picturesToModelRow = new ArrayList<>();
-			for (int i = imagesCount; i < allPictures.size(); i++)
+			List<PictureData> picturesToModelRow = new ArrayList<>();
+			for (int i = alreadyCopiedImagesCount; i < allPictures.size(); i++)
 			{
-				HSSFPictureData hssfPictureData = allPictures.get(i);
+				PictureData hssfPictureData = allPictures.get(i);
 				if(allPictures.size() - i == 1)
 				{
 					insertMainImage(newSheet, hssfPictureData, anchor, lastRowNewSheet);
@@ -176,14 +178,16 @@ public final class ExcelCopier
 		}
 		else
 		{
-			HSSFPictureData hssfPictureData = allPictures.get(allPictures.size() - 1);
+			PictureData hssfPictureData = allPictures.get(allPictures.size() - 1);
 			insertMainImage(newSheet, hssfPictureData, anchor, lastRowNewSheet);
 		}
-		imagesCount = allPictures.size();
+		alreadyCopiedImagesCount = allPictures.size();
 
 	}
 
-	private void buildModelRow(HSSFSheet newSheet, ClientAnchor anchor, List<HSSFPictureData> picturesToModelRow, int startRow)
+
+	//TODO: remove hardcode
+	private void buildModelRow(Sheet newSheet, ClientAnchor anchor, List<PictureData> picturesToModelRow, int startRow)
 	{
 		int row1 = startRow;
 		int row2 = startRow;
@@ -206,10 +210,10 @@ public final class ExcelCopier
 		}
 	}
 
-	private void insertImage(HSSFSheet newSheet, HSSFPictureData hssfPictureData, ClientAnchor anchor)
+	private void insertImage(Sheet newSheet, PictureData pictureData, ClientAnchor anchor)
 	{
-		byte[] bytes = hssfPictureData.getData();
-		HSSFWorkbook wb = newSheet.getWorkbook();
+		byte[] bytes = pictureData.getData();
+		Workbook wb = newSheet.getWorkbook();
 		int pictureIdx = wb.addPicture(bytes, Workbook.PICTURE_TYPE_JPEG);
 		Drawing drawing = newSheet.createDrawingPatriarch();
 		CreationHelper helper = wb.getCreationHelper();
@@ -220,44 +224,21 @@ public final class ExcelCopier
 		clientAnchor.setCol2(anchor.getCol2());
 		clientAnchor.setAnchorType(ClientAnchor.DONT_MOVE_AND_RESIZE);
 		Picture pict = drawing.createPicture(clientAnchor, pictureIdx);
-//		try
-//		{
-//			String name = "E:\\log\\" + hssfPictureData.getData().length + hssfPictureData.hashCode() + "." + hssfPictureData.suggestFileExtension();
-//			File file = new File(name);
-//			if(!file.exists())
-//			{
-//				file.createNewFile();
-//			}
-//			FileOutputStream fileOutputStream = new FileOutputStream(file);
-//			fileOutputStream.write(bytes);
-//		}
-//		catch (IOException e)
-//		{
-//			e.printStackTrace();
-//		}
-//		pict.resize();
 	}
 
-	private void insertMainImage(HSSFSheet newSheet, HSSFPictureData hssfPictureData, ClientAnchor anchor, int lastRowNewSheet)
+	private void insertMainImage(Sheet newSheet, PictureData pictureData, ClientAnchor anchor, int lastRowNewSheet)
 	{
+		//TODO: remove hardcode
 		anchor.setCol1(0);
 		anchor.setRow1(lastRowNewSheet);
 		anchor.setCol2(5);
 		anchor.setRow2(21 + lastRowNewSheet);
-		insertImage(newSheet, hssfPictureData, anchor);
+		insertImage(newSheet, pictureData, anchor);
 	}
 
 
-	/**
-	 * @param srcSheet        the sheet to copy.
-	 * @param destSheet       the sheet to create.
-	 * @param srcRow          the row to copy.
-	 * @param destRow         the row to create.
-	 * @param lastRowNewSheet
-	 * @param styleMap
-	 */
-	public void copyRow(HSSFSheet srcSheet, HSSFSheet destSheet, HSSFRow srcRow, HSSFRow destRow,
-	                    int lastRowNewSheet, Map<Integer, HSSFCellStyle> styleMap)
+	public void copyRow(Sheet srcSheet, Sheet destSheet, Row srcRow, Row destRow,
+	                    int lastRowNewSheet, Map<Integer, CellStyle> styleMap)
 	{
 		// manage a list of merged zone in order to not insert two times a merged zone
 		Set<CellRangeAddressWrapper> mergedRegions = new TreeSet<CellRangeAddressWrapper>();
@@ -266,8 +247,8 @@ public final class ExcelCopier
 		for (int j = srcRow.getFirstCellNum(); j <= srcRow.getLastCellNum(); j++)
 		{
 
-			HSSFCell oldCell = srcRow.getCell(j); // old cell
-			HSSFCell newCell = destRow.getCell(j); // new cell
+			Cell oldCell = srcRow.getCell(j); // old cell
+			Cell newCell = destRow.getCell(j); // new cell
 			if (oldCell != null)
 			{
 				if (newCell == null)
@@ -276,8 +257,6 @@ public final class ExcelCopier
 				}
 				copyCell(oldCell, newCell, styleMap, lastRowNewSheet);
 				// System.out.println("row num: " + srcRow.getRowNum() + " , col: " + (short) oldCell.getColumnIndex());
-				try
-				{
 					CellRangeAddress mergedRegion = getMergedRegion(srcSheet, srcRow.getRowNum(), (short) oldCell
 							.getColumnIndex(), lastRowNewSheet);
 					// System.out.println("mergedRegion: " + mergedRegion);
@@ -297,24 +276,13 @@ public final class ExcelCopier
 							destSheet.addMergedRegion(wrapper.range);
 						}
 					}
-				}
-				catch (Exception e)
-				{
-					e.printStackTrace();
-				}
 			}
 		}
-
 	}
 
-	/**
-	 * @param oldCell
-	 * @param newCell
-	 * @param styleMap
-	 */
-	public void copyCell(HSSFCell oldCell, HSSFCell newCell, Map<Integer, HSSFCellStyle> styleMap, int lastRowNewSheet)
+	@Override
+	public void copyCell(Cell oldCell, Cell newCell, Map<Integer, CellStyle> styleMap, int lastRowNewSheet)
 	{
-
 		if (styleMap != null)
 		{
 			if (oldCell.getSheet().getWorkbook() == newCell.getSheet().getWorkbook())
@@ -323,7 +291,7 @@ public final class ExcelCopier
 			} else
 			{
 				int stHashCode = oldCell.getCellStyle().hashCode();
-				HSSFCellStyle newCellStyle = styleMap.get(stHashCode);
+				CellStyle newCellStyle = styleMap.get(stHashCode);
 				if (newCellStyle == null)
 				{
 					newCellStyle = newCell.getSheet().getWorkbook().createCellStyle();
@@ -335,28 +303,28 @@ public final class ExcelCopier
 		}
 		switch (oldCell.getCellType())
 		{
-			case HSSFCell.CELL_TYPE_STRING:
+			case Cell.CELL_TYPE_STRING:
 				newCell.setCellValue(oldCell.getStringCellValue());
 				// System.out.println("oldCell = " + oldCell.getStringCellValue());
 				// System.out.println("newCell = " + newCell.getStringCellValue());
 
 				break;
-			case HSSFCell.CELL_TYPE_NUMERIC:
+			case Cell.CELL_TYPE_NUMERIC:
 				newCell.setCellValue(oldCell.getNumericCellValue());
 				// System.out.println("oldCell = " + oldCell.getNumericCellValue());
 				// System.out.println("newCell = " + newCell.getNumericCellValue());
 				break;
-			case HSSFCell.CELL_TYPE_BLANK:
-				newCell.setCellType(HSSFCell.CELL_TYPE_BLANK);
+			case Cell.CELL_TYPE_BLANK:
+				newCell.setCellType(Cell.CELL_TYPE_BLANK);
 				break;
-			case HSSFCell.CELL_TYPE_BOOLEAN:
+			case Cell.CELL_TYPE_BOOLEAN:
 				newCell.setCellValue(oldCell.getBooleanCellValue());
 				break;
-			case HSSFCell.CELL_TYPE_ERROR:
+			case Cell.CELL_TYPE_ERROR:
 				newCell.setCellErrorValue(oldCell.getErrorCellValue());
 				break;
-			//TODO: remove hack!!!!
-			case HSSFCell.CELL_TYPE_FORMULA:
+			//TODO: remove hardcode!!!!
+			case Cell.CELL_TYPE_FORMULA:
 				String oldCellFormula = oldCell.getCellFormula();
 				if(oldCellFormula.startsWith("J11*H20"))
 				{
@@ -379,18 +347,13 @@ public final class ExcelCopier
 		}
 	}
 
-	/**
-	 * @param sheet   the sheet containing the data.
-	 * @param rowNum  the num of the row to copy.
-	 * @param cellNum the num of the cell to copy.
-	 * @return the CellRangeAddress created.
-	 */
-	public CellRangeAddress getMergedRegion(HSSFSheet sheet, int rowNum, short cellNum)
+	@Override
+	public CellRangeAddress getMergedRegion(Sheet sheet, int rowNum, short cellNum)
 	{
 		return getMergedRegion(sheet, rowNum, cellNum, 0);
 	}
 
-	public CellRangeAddress getMergedRegion(HSSFSheet sheet, int rowNum, short cellNum, int startRow)
+	public CellRangeAddress getMergedRegion(Sheet sheet, int rowNum, short cellNum, int startRow)
 	{
 		for (int i = 0; i < sheet.getNumMergedRegions(); i++)
 		{
@@ -401,12 +364,6 @@ public final class ExcelCopier
 			{
 				merged.setFirstRow(firstRowOldValue + startRow);
 				merged.setLastRow(lastRowOldValue + startRow);
-//				if(startRow > 21)
-//				{
-//					System.out.println("Проверяем входит ли ячейка (" + (rowNum + startRow) + "," + cellNum  + ") в границы от ("
-//							+ merged.getFirstRow() + "," + merged.getFirstColumn() + ") до ("
-//							+  merged.getLastRow() + "," + merged.getLastColumn() + ").");
-//				}
 			}
 
 			if (merged.isInRange(rowNum + startRow, cellNum))
@@ -540,155 +497,4 @@ public final class ExcelCopier
 		//Other styles are the same
 		return true;
 	}
-
-//	public void copyImages(HSSFSheet sourceSheet, HSSFSheet targetSheet)
-//	{
-//		List lst = sourceSheet.getWorkbook().getAllPictures();
-//		Hashtable<String, HSSFPicture> picTbl = new Hashtable<String,
-//				HSSFPicture>();
-//		findShapeInfo(sourceSheet);
-//		CreationHelper helper =
-//				targetSheet.getWorkbook().getCreationHelper();
-//		HSSFPatriarch drawing = null;
-//		try
-//		{
-//			drawing = targetSheet.getDrawingPatriarch();
-//		}
-//		catch (Exception ex)
-//		{
-//			ex.printStackTrace();
-//		}
-//		if (drawing == null)
-//			drawing = targetSheet.createDrawingPatriarch();
-//
-//		for (Shape shape : shapes.values())
-//		{
-//			if (shape.getPictureFilename() == null)
-//				continue;
-//
-//			HSSFPictureData picData = (HSSFPictureData)
-//					lst.get(shape.getPicIndex());
-//			shape.setPictureData(picData);
-//
-//			byte[] data = shape.getPictureData().getData();
-//
-//			HSSFClientAnchor anchor = (HSSFClientAnchor)
-//					helper.createClientAnchor();
-//			anchor.setCol1(shape.getCol1());
-//			anchor.setCol2(shape.getCol2());
-//			anchor.setRow1(shape.getRow1());
-//			anchor.setRow2(shape.getRow2());
-//			anchor.setDx1(shape.getOffsetCol1());
-//			anchor.setDx2(shape.getOffsetCol2());
-//			anchor.setDy1(shape.getOffsetRow1());
-//			anchor.setDy2(shape.getOffsetRow2());
-//
-//			// The pictureIdx is wrong
-//			int pictureIdx =
-//					targetSheet.getWorkbook().addPicture(String.valueOf(anchor.hashCode()),
-//							data, shape.getPictureData().getFormat());
-//			HSSFPicture pic = drawing.createPicture(anchor,
-//					pictureIdx);
-//			picTbl.put(String.valueOf(anchor.hashCode()), pic);
-//		}
-//
-//		int index = 1;
-//		lst = targetSheet.getWorkbook().getAllPictures();
-//		for (int i = 0; i < lst.size(); i++)
-//		{
-//			index++;
-//			HSSFPictureData picData = (HSSFPictureData)
-//					lst.get(i);
-//
-//			if (picData.getCustomId() == null)
-//				continue;
-//
-//			HSSFPicture pic = picTbl.get(picData.getCustomId());
-//			if (pic == null)
-//				continue;
-//
-//			pic.setPictureIndex(index);
-//		}
-//	}
-//
-//	private void findShapeInfo(HSSFSheet sheet)
-//	{
-//		try
-//		{
-//			EscherAggregate escherAggregate = sheet.getDrawingEscherAggregate();
-//			if (escherAggregate != null)
-//			{
-//				EscherContainerRecord escherContainer =
-//						escherAggregate.getEscherContainer();
-//				iterateContainer(escherContainer, 1);
-//			}
-//		}
-//		catch (Exception ex)
-//		{
-//			ex.printStackTrace();
-//		}
-//	}
-//
-//	private void iterateContainer(EscherContainerRecord escherContainer, int
-//			level)
-//	{
-//		if (escherContainer == null)
-//			return;
-//
-//		List childRecords = escherContainer.getChildRecords();
-//		Iterator listIterator = null;
-//		org.apache.poi.ddf.EscherSpgrRecord sprgRecord = null;
-//		org.apache.poi.ddf.EscherSpRecord spRecord = null;
-//		org.apache.poi.ddf.EscherOptRecord optRecord = null;
-//		org.apache.poi.ddf.EscherClientAnchorRecord anchrRecord = null;
-//		org.apache.poi.ddf.EscherClientDataRecord dataRecord = null;
-//		org.apache.poi.ddf.EscherDgRecord dgRecord = null;
-//		Object next = null;
-//
-//		listIterator = childRecords.iterator();
-//		while (listIterator.hasNext())
-//		{
-//			next = listIterator.next();
-//
-//			// logger.debug("next: " + next);
-//
-//			if (next instanceof org.apache.poi.ddf.EscherContainerRecord)
-//				iterateContainer((org.apache.poi.ddf.EscherContainerRecord) next,
-//						++level);
-//			else if (next instanceof org.apache.poi.ddf.EscherSpgrRecord)
-//				sprgRecord = (org.apache.poi.ddf.EscherSpgrRecord) next;
-//			else if (next instanceof org.apache.poi.ddf.EscherSpRecord)
-//				spRecord = (org.apache.poi.ddf.EscherSpRecord) next;
-//			else if (next instanceof org.apache.poi.ddf.EscherOptRecord)
-//			{
-//				optRecord = (org.apache.poi.ddf.EscherOptRecord) next;
-//				String key = String.valueOf(level);
-//				if (shapes.containsKey(key))
-//					shapes.get(key).setOptRecord(optRecord);
-//				else
-//				{
-//					ShapeInfo shape = new ShapeInfo(level);
-//					shape.setOptRecord(optRecord);
-//					shapes.put(key, shape);
-//				}
-//			}
-//			else if (next instanceof org.apache.poi.ddf.EscherClientAnchorRecord)
-//			{
-//				anchrRecord = (org.apache.poi.ddf.EscherClientAnchorRecord) next;
-//				String key = String.valueOf(level);
-//				if (shapes.containsKey(key))
-//					shapes.get(key).setAnchorRecord(anchrRecord);
-//				else
-//				{
-//					ShapeInfo shape = new ShapeInfo(level);
-//					shape.setAnchorRecord(anchrRecord);
-//					shapes.put(key, shape);
-//				}
-//			}
-//			else if (next instanceof org.apache.poi.ddf.EscherClientDataRecord)
-//				dataRecord = (org.apache.poi.ddf.EscherClientDataRecord) next;
-//			else if (next instanceof org.apache.poi.ddf.EscherDgRecord)
-//				dgRecord = (org.apache.poi.ddf.EscherDgRecord) next;
-//		}
-//	}
 }

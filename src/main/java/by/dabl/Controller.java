@@ -1,14 +1,11 @@
-package sample;
+package by.dabl;
 
-import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
+import by.dabl.model.ExcelWorker;
+import by.dabl.model.ParserConfiguration;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
-import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.effect.Lighting;
-import javafx.scene.input.MouseEvent;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -79,8 +76,20 @@ public class Controller
 
 	public void starParsing()
 	{
-		ExcelWorker worker = new ExcelWorker();
-		worker.startParse(absoluteFilePathName.getText(), createConfiguration(), absoluteFolderPath.getText());
+		Task<Void> task = new Task<Void>()
+		{
+			@Override
+			protected Void call() throws Exception
+			{
+				ExcelWorker worker = new ExcelWorker(absoluteFilePathName.getText(), createConfiguration(), absoluteFolderPath.getText());
+				Thread workerThread = new Thread(worker, "Worker Thread");
+				workerThread.start();
+				//worker.run();
+				return null;
+			}
+		};
+		task.progressProperty();
+		new Thread(task, "Task thread").start();
 	}
 
 	private ParserConfiguration createConfiguration()
